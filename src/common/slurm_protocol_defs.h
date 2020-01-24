@@ -244,8 +244,8 @@ typedef enum {
 	DEFUNCT_RPC_2012,
 	REQUEST_JOB_ID,
 	RESPONSE_JOB_ID,
-	DEFUNCT_RPC_2015, /* free for reuse */
-	DEFUNCT_RPC_2016, /* free for reuse */
+	REQUEST_CONFIG,
+	RESPONSE_CONFIG,
 	REQUEST_TRIGGER_SET,
 	REQUEST_TRIGGER_GET,
 	REQUEST_TRIGGER_CLEAR,
@@ -1107,6 +1107,21 @@ typedef struct job_id_response_msg {
 	uint32_t return_code;	/* slurm return code */
 } job_id_response_msg_t;
 
+typedef struct {
+	uint32_t flags;
+} config_request_msg_t;
+
+typedef struct {
+	uint64_t timestamp;	/* last config update timestamp */
+	char *config;
+	char *acct_gather_config;
+	char *cgroup_config;
+	char *ext_sensors_config;
+	char *gres_config;
+	char *knl_config;
+	char *topology_config;
+} config_response_msg_t;
+
 typedef struct srun_exec_msg {
 	uint32_t job_id;	/* slurm job_id */
 	uint32_t step_id;	/* step_id or NO_VAL */
@@ -1392,6 +1407,8 @@ extern void slurm_free_job_id_msg(job_id_msg_t * msg);
 extern void slurm_free_job_user_id_msg(job_user_id_msg_t * msg);
 extern void slurm_free_job_id_request_msg(job_id_request_msg_t * msg);
 extern void slurm_free_job_id_response_msg(job_id_response_msg_t * msg);
+extern void slurm_free_config_request_msg(config_request_msg_t *msg);
+extern void slurm_free_config_response_msg(config_response_msg_t *msg);
 
 extern void slurm_free_job_step_id_msg(job_step_id_msg_t *msg);
 
