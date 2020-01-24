@@ -1116,10 +1116,12 @@ typedef struct {
 	char *config;
 	char *acct_gather_config;
 	char *cgroup_config;
+	char *cgroup_allowed_devices_file_config;
 	char *ext_sensors_config;
 	char *gres_config;
 	char *knl_cray_config;
 	char *knl_generic_config;
+	char *plugstack_config;
 	char *topology_config;
 	char *slurmd_spooldir;
 } config_response_msg_t;

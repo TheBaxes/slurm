@@ -872,10 +872,12 @@ extern void slurm_free_config_response_msg(config_response_msg_t *msg)
 		xfree(msg->config);
 		xfree(msg->acct_gather_config);
 		xfree(msg->cgroup_config);
+		xfree(msg->cgroup_allowed_devices_file_config);
 		xfree(msg->ext_sensors_config);
 		xfree(msg->gres_config);
 		xfree(msg->knl_cray_config);
 		xfree(msg->knl_generic_config);
+		xfree(msg->plugstack_config);
 		xfree(msg->topology_config);
 		xfree(msg->slurmd_spooldir);
 		xfree(msg);
