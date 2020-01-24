@@ -43,4 +43,10 @@ extern int dump_to_memfd(char *type, char *config, char **filename);
 
 extern void init_minimal_config_server_config(char *config_server);
 
+extern int write_configs_to_config_cache(config_response_msg_t *msg,
+					 const char *dir);
+
+extern void load_config_response_msg(config_response_msg_t *msg,
+				     const char *dir, int flags);
+
 #endif

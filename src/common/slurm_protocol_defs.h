@@ -1118,7 +1118,8 @@ typedef struct {
 	char *cgroup_config;
 	char *ext_sensors_config;
 	char *gres_config;
-	char *knl_config;
+	char *knl_cray_config;
+	char *knl_generic_config;
 	char *topology_config;
 	char *slurmd_spooldir;
 } config_response_msg_t;

@@ -1620,16 +1620,42 @@ _slurmd_init(void)
 	_process_cmdline(*conf->argc, *conf->argv);
 
 	if (conf->config_server) {
-		init_minimal_config_server_config(conf->config_server);
 		config_response_msg_t *configs;
-		if (fetch_configs(0, &configs)) {
-			error("%s: failed to fetch configs", __func__);
-			exit(-1);
+		init_minimal_config_server_config(conf->config_server);
+		if (fetch_configs(0, &configs) || !configs) {
+			error("%s: error fetching configs: %m", __func__);
+			return SLURM_ERROR;
 		}
 
-		int fd = dump_to_memfd("slurm.conf", configs->config, &conf->conffile);
+		//int fd = dump_to_memfd("slurm.conf", configs->config, &conf->conffile);
+		//error("%s %d %s", __func__, fd, conf->conffile);
 
-		error("%s %d %s", __func__, fd, conf->conffile);
+error("%s: `%s` `%s`", __func__, configs->cgroup_config, configs->slurmd_spooldir);
+		conf->spooldir = configs->slurmd_spooldir;
+		configs->slurmd_spooldir = NULL;
+		/*
+		 * One limitation - if node_name was not set through -N
+		 * the %n replacement here will not be possible since we can't
+		 * load the node tables yet.
+		 */
+		_massage_pathname(&conf->spooldir);
+		if (_set_slurmd_spooldir(conf->spooldir) < 0) {
+			error("Unable to initialize slurmd spooldir");
+			return SLURM_ERROR;
+		}
+
+		xfree(conf->configcache);
+		xstrfmtcat(conf->configcache, "%s/config-cache", conf->spooldir);
+		if (_set_slurmd_spooldir(conf->configcache) < 0) {
+			error("Unable to initialize slurmd config-cache dir");
+			return SLURM_ERROR;
+		}
+
+		if (write_configs_to_config_cache(configs, conf->configcache))
+			return SLURM_ERROR;
+
+		xfree(conf->conffile);
+		xstrfmtcat(conf->conffile, "%s/slurm.conf", conf->configcache);
 		slurm_conf_reinit(conf->conffile);
 	}
 

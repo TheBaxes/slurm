@@ -124,9 +124,7 @@ extern void init_minimal_config_server_config(char *config_server)
 	if (port)
 		xstrfmtcat(conf, "SlurmctldPort=%s\n", port);
 
-	xfree(server); /* warning - do not free port, it is inside this */
-
-error("%s: `%s`", __func__, conf); 
+	xfree(server); /* do not free port, it is inside this allocation */
 
 	if ((fd = dump_to_memfd("slurm.conf", conf, &filename)) < 0)
 		fatal("%s: could not write temporary config", __func__);
@@ -135,4 +133,87 @@ error("%s: `%s`", __func__, conf);
 	slurm_conf_init(filename);
 
 	close(fd);
+}
+
+static int _write_conf(const char *dir, const char *name, const char *content)
+{
+	char *file = NULL;
+	int fd;
+
+	if (!content)
+		return SLURM_SUCCESS;
+
+	xstrfmtcat(file, "%s/%s", dir, name);
+	if ((fd = open(file, O_CREAT|O_WRONLY|O_TRUNC|O_CLOEXEC, 0644)) < 0) {
+		error("%s: could not open config file `%s`", __func__, file);
+		xfree(file);
+		return SLURM_ERROR;
+	}
+	safe_write(fd, content, strlen(content));
+
+	xfree(file);
+	return SLURM_SUCCESS;
+
+rwfail:
+	error("%s: error writing config to %s: %m", __func__, file);
+	xfree(file);
+	close(fd);
+	return SLURM_ERROR;
+}
+
+extern int write_configs_to_config_cache(config_response_msg_t *msg,
+					 const char *dir)
+{
+	if (_write_conf(dir, "slurm.conf", msg->config))
+		return SLURM_ERROR;
+	if (_write_conf(dir, "acct_gather.conf", msg->acct_gather_config))
+		return SLURM_ERROR;
+	if (_write_conf(dir, "cgroup.conf", msg->cgroup_config))
+		return SLURM_ERROR;
+	if (_write_conf(dir, "ext_sensors.conf", msg->ext_sensors_config))
+		return SLURM_ERROR;
+	if (_write_conf(dir, "gres.conf", msg->gres_config))
+		return SLURM_ERROR;
+	if (_write_conf(dir, "knl_cray.conf", msg->knl_cray_config))
+		return SLURM_ERROR;
+	if (_write_conf(dir, "knl_generic.conf", msg->knl_generic_config))
+		return SLURM_ERROR;
+	if (_write_conf(dir, "topology.conf", msg->topology_config))
+		return SLURM_ERROR;
+
+	return SLURM_SUCCESS;
+}
+
+static void _load_conf(const char *dir, const char *name, char **target)
+{
+	char *file = NULL;
+	buf_t *config;
+
+	xstrfmtcat(file, "%s/%s", dir, name);
+	config = create_mmap_buf(file);
+	xfree(file);
+
+	/*
+	 * If we can't load a given config, then assume that one isn't required
+	 * on this system.
+	 */
+	if (config)
+		*target = xstrndup(config->head, config->size);
+
+	free_buf(config);
+}
+
+extern void load_config_response_msg(config_response_msg_t *msg,
+				     const char *dir, int flags)
+{
+	xassert(msg);
+
+	_load_conf(dir, "slurm.conf", &msg->config);
+	_load_conf(dir, "acct_gather.conf", &msg->acct_gather_config);
+	_load_conf(dir, "cgroup.conf", &msg->cgroup_config);
+	_load_conf(dir, "ext_sensors.conf", &msg->ext_sensors_config);
+	_load_conf(dir, "gres.conf", &msg->gres_config);
+	_load_conf(dir, "knl_cray.conf", &msg->knl_cray_config);
+	_load_conf(dir, "knl_generic.conf", &msg->knl_generic_config);
+	_load_conf(dir, "topology.conf", &msg->topology_config);
 }

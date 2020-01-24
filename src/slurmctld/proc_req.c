@@ -56,6 +56,7 @@
 #include "src/common/assoc_mgr.h"
 #include "src/common/daemonize.h"
 #include "src/common/fd.h"
+#include "src/common/fetch_config.h"
 #include "src/common/forward.h"
 #include "src/common/gres.h"
 #include "src/common/group_cache.h"
@@ -3524,34 +3525,32 @@ static void _slurm_rpc_config_request(slurm_msg_t *msg)
 {
 	uid_t uid = g_slurm_auth_get_uid(msg->auth_cred);
 	config_request_msg_t *req = (config_request_msg_t *) msg->data;
-	config_response_msg_t resp = { 0 };
+	config_response_msg_t *resp;
 	slurm_msg_t response_msg;
 	DEF_TIMERS;
 
 	START_TIMER;
 	debug("Processing RPC: REQUEST_CONFIG from %u", uid);
-error("%s: %u", __func__, req->flags);
-	resp.timestamp = time(NULL);	// change this to cache later
-	resp.config = xstrdup("foobar");
+	resp = xmalloc(sizeof(*resp));
+	resp->timestamp = time(NULL);	// change this to cache later
 	if (validate_slurm_user(uid)) {
-		// full thing available
-		resp.cgroup_config = xstrdup("cgroup");
-		char *config_file = get_extra_conf_path("slurm.conf");
-		buf_t *config = create_mmap_buf(config_file);
-		resp.config = xstrndup(config->head, config->size);
-		free_buf(config);
+		char *conf_dir = get_extra_conf_path("");
+		load_config_response_msg(resp, conf_dir, req->flags);
+		xfree(conf_dir);
+
+		resp->slurmd_spooldir = xstrdup(slurmctld_conf.slurmd_spooldir);
 	} else {
-		
+		// only provide slurm.conf	
 	}
 	END_TIMER2(__func__);
 
 	response_init(&response_msg, msg);
 	response_msg.msg_type = RESPONSE_CONFIG;
-	response_msg.data = &resp;
+	response_msg.data = resp;
 
 	slurm_send_node_msg(msg->conn_fd, &response_msg);
 
-	xfree(resp.config);
+	slurm_free_config_response_msg(resp);
 }
 
 /* _slurm_rpc_reconfigure_controller - process RPC to re-initialize
