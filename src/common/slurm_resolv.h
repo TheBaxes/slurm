@@ -37,4 +37,6 @@
 #ifndef _SLURM_RESOLV_H_
 #define _SLURM_RESOLV_H_
 
+extern int resolve_srv(char **server);
+
 #endif

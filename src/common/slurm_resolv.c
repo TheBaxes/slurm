@@ -36,6 +36,67 @@
 
 #define _GNU_SOURCE
 
+#include <arpa/inet.h>
+#include <arpa/nameser.h>
+#include <netinet/in.h>
+#include <resolv.h>
+
 #include "src/common/slurm_protocol_api.h"
 #include "src/common/xstring.h"
 #include "src/common/xmalloc.h"
+
+#define SRV_RECORD "_slurmctld._tcp"
+
+extern int resolve_srv(char **server)
+{
+	struct __res_state res;
+	ns_msg handle;
+	ns_rr rr;
+	unsigned char answer[512];
+	int len;
+	uint16_t priority, last_priority = INFINITE16, port;
+
+	if (res_ninit(&res)) {
+		error("%s: res_ninit error: %m", __func__);
+		return SLURM_ERROR;
+	}
+
+	if ((len = res_nsearch(&res, SRV_RECORD, C_IN, T_SRV,
+			       answer, sizeof(answer))) < 0) {
+		error("%s: res_nsearch error: %m", __func__);
+		return SLURM_ERROR;
+	}
+
+	if (ns_initparse(answer, len, &handle) < 0) {
+		error("%s: ns_initparse error: %m", __func__);
+		return SLURM_ERROR;
+	}
+
+	for (int i = 0; i < ns_msg_count(handle, ns_s_an); i++) {
+		char dname[512];
+		if (ns_parserr(&handle, ns_s_an, i, &rr) < 0) {
+			error("%s: ns_parserr", __func__);
+			continue;
+		}
+
+ 		if (ns_rr_type(rr) != T_SRV)
+			continue;
+
+		priority = ns_get16(ns_rr_rdata(rr));
+		/* don't care about weight */
+		port = ns_get16(ns_rr_rdata(rr) + 2 * NS_INT16SZ);
+
+		if (dn_expand(ns_msg_base(handle), ns_msg_end(handle),
+			      ns_rr_rdata(rr) + 3 * NS_INT16SZ, dname,
+			      sizeof(dname)) < 0)
+			continue;
+
+		if (priority < last_priority) {
+			xfree(*server);
+			xstrfmtcat(*server, "%s:%u", dname, port);
+			last_priority = priority;
+		}
+	}
+
+	return SLURM_SUCCESS;
+}

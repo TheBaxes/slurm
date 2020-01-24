@@ -94,6 +94,7 @@
 #include "src/common/slurm_jobacct_gather.h"
 #include "src/common/slurm_mcs.h"
 #include "src/common/slurm_protocol_api.h"
+#include "src/common/slurm_resolv.h"
 #include "src/common/slurm_rlimits_info.h"
 #include "src/common/slurm_route.h"
 #include "src/common/slurm_topology.h"
@@ -1603,6 +1604,19 @@ _stepd_cleanup_batch_dirs(const char *directory, const char *nodename)
 	closedir(dp);
 }
 
+static bool slurm_conf_exists(void)
+{
+	struct stat stat_buf;
+
+	char *filename = conf->conffile;
+	if (!filename)
+		filename = getenv("SLURM_CONF");
+	if (!filename)
+		filename = default_slurm_config_file;
+
+	return !stat(filename, &stat_buf);
+}
+
 static int
 _slurmd_init(void)
 {
@@ -1618,6 +1632,17 @@ _slurmd_init(void)
 	 * an alternate location for the slurm config file.
 	 */
 	_process_cmdline(*conf->argc, *conf->argv);
+
+	if (conf->config_server) {
+		debug("%s: running configless", __func__);
+	} else if (slurm_conf_exists()) {
+		debug("%s: config loaded successfully", __func__);
+	} else if (resolve_srv(&conf->config_server)) {
+		info("Found SRV record. Will load config from %s.",
+		     conf->config_server);
+	} else {
+		fatal("No valid configuration source found");
+	}
 
 	if (conf->config_server) {
 		config_response_msg_t *configs;
