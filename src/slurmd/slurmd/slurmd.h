@@ -76,6 +76,8 @@ typedef struct slurmd_config {
 	char         *cluster_name; 	/* conf ClusterName		   */
 	char         *hostname;	 	/* local hostname		   */
 	char         *config_server;	/* slurmctld to fetch config from  */
+	char         *configcache;	/* cache of slurm configs          */
+					/* (if running configless)         */
 	uint16_t     cpus;              /* lowest-level logical processors */
 	uint16_t     boards;            /* total boards count              */
 	uint16_t     sockets;           /* total sockets count             */
