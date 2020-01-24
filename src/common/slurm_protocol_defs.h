@@ -1120,6 +1120,7 @@ typedef struct {
 	char *gres_config;
 	char *knl_config;
 	char *topology_config;
+	char *slurmd_spooldir;
 } config_response_msg_t;
 
 typedef struct srun_exec_msg {
