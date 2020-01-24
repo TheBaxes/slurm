@@ -71,6 +71,7 @@
 #include "src/common/cpu_frequency.h"
 #include "src/common/daemonize.h"
 #include "src/common/fd.h"
+#include "src/common/fetch_config.h"
 #include "src/common/forward.h"
 #include "src/common/gres.h"
 #include "src/common/group_cache.h"
@@ -1609,6 +1610,20 @@ _slurmd_init(void)
 	 * an alternate location for the slurm config file.
 	 */
 	_process_cmdline(*conf->argc, *conf->argv);
+
+	if (conf->config_server) {
+		init_minimal_config_server_config(conf->config_server);
+		config_response_msg_t *configs;
+		if (fetch_configs(0, &configs)) {
+			error("%s: failed to fetch configs", __func__);
+			exit(-1);
+		}
+
+		int fd = dump_to_memfd("slurm.conf", configs->config, &conf->conffile);
+
+		error("%s %d %s", __func__, fd, conf->conffile);
+		slurm_conf_reinit(conf->conffile);
+	}
 
 	/*
 	 * Build nodes table like in slurmctld

@@ -34,4 +34,105 @@
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA.
 \*****************************************************************************/
 
+#define _GNU_SOURCE
 
+#include <sys/mman.h>	/* memfd_create */
+
+#include "src/common/read_config.h"
+#include "src/common/slurm_protocol_api.h"
+#include "src/common/xstring.h"
+#include "src/common/xmalloc.h"
+
+extern int fetch_configs(uint32_t flags, config_response_msg_t **configs)
+{
+	int rc;
+	slurm_msg_t req_msg;
+	slurm_msg_t resp_msg;
+	config_request_msg_t req;
+	config_response_msg_t *resp;
+
+	slurm_msg_t_init(&req_msg);
+	slurm_msg_t_init(&resp_msg);
+
+	memset(&req, 0, sizeof(req));
+	req.flags = flags;
+	req_msg.msg_type = REQUEST_CONFIG;
+	req_msg.data = &req;
+
+	if (slurm_send_recv_controller_msg(&req_msg, &resp_msg,
+					   working_cluster_rec) < 0)
+		return SLURM_ERROR;
+
+	switch (resp_msg.msg_type) {
+	case RESPONSE_CONFIG:
+		resp = (config_response_msg_t *) resp_msg.data;
+		break;
+	case RESPONSE_SLURM_RC:
+		rc = ((return_code_msg_t *) resp_msg.data)->return_code;
+		slurm_free_return_code_msg(resp_msg.data);
+		slurm_seterrno_ret(rc);
+		break;
+	default:
+		slurm_seterrno_ret(SLURM_UNEXPECTED_MSG_ERROR);
+		break;
+	}
+
+	*configs = resp;
+	return SLURM_SUCCESS;
+}
+
+int dump_to_memfd(char *type, char *config, char **filename)
+{
+#ifdef HAVE_MEMFD_CREATE
+	pid_t pid = getpid();
+
+	int fd = memfd_create(type, MFD_CLOEXEC);
+	if (fd < 0)
+		fatal("%s: failed memfd_create: %m", __func__);
+
+	xfree(*filename);
+	xstrfmtcat(*filename, "/proc/%lu/fd/%d", (unsigned long) pid, fd);
+
+	safe_write(fd, config, strlen(config));
+
+	return fd;
+
+rwfail:
+	fatal("%s: could not write conf file, likely out of memory", __func__);
+	return SLURM_ERROR;
+#else
+	error("%s: memfd_create() not found at compile time");
+	return SLURM_ERROR;
+#endif
+}
+
+extern void init_minimal_config_server_config(char *config_server)
+{
+	// if (!config_server) then DNS lookup
+	char *conf = NULL, *filename = NULL;
+	char *server = xstrdup(config_server);
+	char *port = strchr(server, ':');
+	int fd;
+
+	if (port) {
+		*port = '\0';
+		port++;
+	}
+
+	xstrfmtcat(conf, "ClusterName=CONFIGLESS\n");
+	xstrfmtcat(conf, "SlurmctldHost=%s\n", server);
+	if (port)
+		xstrfmtcat(conf, "SlurmctldPort=%s\n", port);
+
+	xfree(server); /* warning - do not free port, it is inside this */
+
+error("%s: `%s`", __func__, conf); 
+
+	if ((fd = dump_to_memfd("slurm.conf", conf, &filename)) < 0)
+		fatal("%s: could not write temporary config", __func__);
+	xfree(conf);
+
+	slurm_conf_init(filename);
+
+	close(fd);
+}

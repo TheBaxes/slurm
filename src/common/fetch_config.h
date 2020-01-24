@@ -37,4 +37,10 @@
 #ifndef _FETCH_CONFIG_H_
 #define _FETCH_CONFIG_H_
 
+extern int fetch_configs(uint32_t flags, config_response_msg_t **configs);
+
+extern int dump_to_memfd(char *type, char *config, char **filename);
+
+extern void init_minimal_config_server_config(char *config_server);
+
 #endif

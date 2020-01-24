@@ -220,6 +220,7 @@ inline static void  _slurm_rpc_update_layout(slurm_msg_t * msg);
 inline static void  _slurm_rpc_update_partition(slurm_msg_t * msg);
 inline static void  _slurm_rpc_update_powercap(slurm_msg_t * msg);
 inline static void  _update_cred_key(void);
+static void _slurm_rpc_config_request(slurm_msg_t *msg);
 
 static void  _slurm_rpc_composite_msg(slurm_msg_t *msg);
 static void  _slurm_rpc_comp_msg_list(composite_msg_t * comp_msg,
@@ -507,6 +508,9 @@ void slurmctld_req(slurm_msg_t *msg, connection_arg_t *arg)
 		break;
 	case REQUEST_UPDATE_JOB_STEP:
 		_slurm_rpc_step_update(msg);
+		break;
+	case REQUEST_CONFIG:
+		_slurm_rpc_config_request(msg);
 		break;
 	case REQUEST_TRIGGER_SET:
 		_slurm_rpc_trigger_set(msg);
@@ -3516,6 +3520,39 @@ static void _slurm_rpc_ping(slurm_msg_t * msg)
 	slurm_send_rc_msg(msg, SLURM_SUCCESS);
 }
 
+static void _slurm_rpc_config_request(slurm_msg_t *msg)
+{
+	uid_t uid = g_slurm_auth_get_uid(msg->auth_cred);
+	config_request_msg_t *req = (config_request_msg_t *) msg->data;
+	config_response_msg_t resp = { 0 };
+	slurm_msg_t response_msg;
+	DEF_TIMERS;
+
+	START_TIMER;
+	debug("Processing RPC: REQUEST_CONFIG from %u", uid);
+error("%s: %u", __func__, req->flags);
+	resp.timestamp = time(NULL);	// change this to cache later
+	resp.config = xstrdup("foobar");
+	if (validate_slurm_user(uid)) {
+		// full thing available
+		resp.cgroup_config = xstrdup("cgroup");
+		char *config_file = get_extra_conf_path("slurm.conf");
+		buf_t *config = create_mmap_buf(config_file);
+		resp.config = xstrndup(config->head, config->size);
+		free_buf(config);
+	} else {
+		
+	}
+	END_TIMER2(__func__);
+
+	response_init(&response_msg, msg);
+	response_msg.msg_type = RESPONSE_CONFIG;
+	response_msg.data = &resp;
+
+	slurm_send_node_msg(msg->conn_fd, &response_msg);
+
+	xfree(resp.config);
+}
 
 /* _slurm_rpc_reconfigure_controller - process RPC to re-initialize
  *	slurmctld from configuration file
